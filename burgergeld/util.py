@@ -240,6 +240,8 @@ class BurgerUtil(commands.Cog):
                 embed.add_field(name=item, value=amount, inline=False)
             await ctx.respond(embed=embed)
 
+
+
     burger_command = discord.SlashCommandGroup(name="burger", description="Commands for the Burger-Menu.")
     @burger_command.command(name="consume", description="Consume a burger or side from your inventory.")
     async def consume_burger(self, ctx):
