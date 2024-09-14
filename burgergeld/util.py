@@ -144,6 +144,38 @@ class BurgerUtil(commands.Cog):
     async def buy_side(self, ctx):
         await ctx.defer()
 
+    @discord.slash_command(name="inventory", description="Shows your current inventory.")
+    async def inventory(self, ctx):
+        await ctx.defer()
+        async with aiosqlite.connect(self.inv_path) as db:
+            result = await db.execute_fetchall(f"SELECT * FROM guild_{ctx.guild.id} WHERE user_id = ?", (ctx.author.id,))
+            if len(result) == 0:
+                await ctx.respond("You currently don't have anything in your inventory!")
+                return
+            with open(self.menu_path, "r") as file:
+                menu_data = json.load(file)
+            burgers = menu_data.get("Burger", [])
+            sides = menu_data.get("Sides", [])
+            inv = {}
+            for item in result:
+                for burger in burgers:
+                    if burger["id"] == item[1]:
+                        if inv.get(burger["name"]) is None:
+                            inv[burger["name"]] = item[2]
+                        else:
+                            inv[burger["name"]] += item[2]
+                for side in sides:
+                    if side["id"] == item[1]:
+                        if inv.get(side["name"]) is None:
+                            inv[side["name"]] = item[2]
+                        else:
+                            inv[side["name"]] += item[2]
+            embed = discord.Embed(title="Inventory", color=discord.Color.blurple())
+            for item, amount in inv.items():
+                embed.add_field(name=item, value=amount, inline=False)
+            await ctx.respond(embed=embed)
+
+
     @discord.Cog.listener()
     async def on_ready(self):
         await setup_db(self)
