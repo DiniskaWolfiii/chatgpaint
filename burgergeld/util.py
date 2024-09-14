@@ -143,6 +143,7 @@ class BurgerUtil(commands.Cog):
     @buy_command.command(name="side", description="Buy a side from the menu.")
     async def buy_side(self, ctx):
         await ctx.defer()
+        await ctx.respond("This command is not implemented yet!", ephemeral=True)
 
     @discord.slash_command(name="inventory", description="Shows your current inventory.")
     async def inventory(self, ctx):
@@ -174,6 +175,23 @@ class BurgerUtil(commands.Cog):
             for item, amount in inv.items():
                 embed.add_field(name=item, value=amount, inline=False)
             await ctx.respond(embed=embed)
+
+    burger_command = discord.SlashCommandGroup(name="burger", description="Commands for the Burger-Menu.")
+    @burger_command.command(name="consume", description="Consume a burger or side from your inventory.")
+    async def consume_burger(self, ctx):
+        await ctx.defer()
+        await ctx.respond("This command is not implemented yet!", ephemeral=True)
+    
+    @burger_command.command(name="sell", description="Sell a burger or side from your inventory.")
+    async def sell_burger(self, ctx):
+        await ctx.defer()
+        await ctx.respond("This command is not implemented yet!", ephemeral=True)
+    
+    @burger_command.command(name="gift", description="Gift a burger or side to another user.")
+    async def gift_burger(self, ctx):
+        await ctx.defer()
+        await ctx.respond("This command is not implemented yet!", ephemeral=True)
+    
 
 
     @discord.Cog.listener()
