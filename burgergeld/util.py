@@ -2,6 +2,7 @@ import discord
 from discord.ext import commands
 import aiosqlite
 import json
+import asyncio
 
 class BurgerUtil(commands.Cog):
     def __init__(self, bot):
@@ -10,7 +11,8 @@ class BurgerUtil(commands.Cog):
         self.inv_path = "./../data/bg_inventory.db"
         self.menu_path = "./../data/bg_menu.json"
 
-    @discord.slash_command(name="burgergeld", description="Shows your current Burgergeld.")
+    bg_command = discord.SlashCommandGroup(name="bg", description="Commands for Burgergeld.")
+    @bg_command.command(name="show", description="Shows your current Burgergeld.")
     async def burgergeld(self, ctx, user: discord.Member = None):
         await ctx.defer()
         if user is None:
@@ -30,7 +32,7 @@ class BurgerUtil(commands.Cog):
                     else:
                         await ctx.respond(f"{user.mention} hat {result[0]} Burgergeld!")
     
-    @discord.slash_command(name="addbg", description="Gives a user Burgergeld.")
+    @bg_command.command(name="add", description="Gives a user Burgergeld.")
     @commands.has_permissions(administrator=True)
     async def addbg(self, ctx, user: discord.Member, amount: int):
         await ctx.defer(ephemeral=True)
@@ -40,7 +42,7 @@ class BurgerUtil(commands.Cog):
             await db.commit()
         await ctx.respond(f"{amount} Burgergeld were added to {user.mention}!")
 
-    @discord.slash_command(name="removebg", description="Removes Burgergeld from user.")
+    @bg_command.command(name="remove", description="Removes Burgergeld from user.")
     @commands.has_permissions(administrator=True)
     async def removebg(self, ctx, user: discord.Member, amount: int):
         await ctx.defer(ephemeral=True)
@@ -50,7 +52,7 @@ class BurgerUtil(commands.Cog):
             await db.commit()
         await ctx.respond(f"{amount} Burgergeld were removed from {user.mention}!")
 
-    @discord.slash_command(name="menu", description="Shows the current Burger-Menu.")
+    @bg_command.command(name="menu", description="Shows the current Burger-Menu.")
     async def menu(self, ctx):
         await ctx.defer()
         with open(self.menu_path, "r") as file:
@@ -64,7 +66,13 @@ class BurgerUtil(commands.Cog):
         embed.add_field(name="Sides", value="\n".join([f"{side['name']} - {side['price']} BG" for side in sides]), inline=False)
         await ctx.respond(embed=embed)
 
-    
+    buy_command = discord.SlashCommandGroup(name="buy", description="Buy something from the menu.")
+    @buy_command.command(name="burger", description="Buy a burger from the menu.")
+    async def buy_burger(self, ctx):
+        await ctx.defer()
+    @buy_command.command(name="side", description="Buy a side from the menu.")
+    async def buy_side(self, ctx):
+        await ctx.defer()
 
     @discord.Cog.listener()
     async def on_ready(self):
