@@ -143,7 +143,71 @@ class BurgerUtil(commands.Cog):
     @buy_command.command(name="side", description="Buy a side from the menu.")
     async def buy_side(self, ctx):
         await ctx.defer()
-        await ctx.respond("This command is not implemented yet!", ephemeral=True)
+        menu = None
+        with open(self.menu_path, "r") as file:
+            menu = json.load(file)
+        sides = menu.get("Sides", [])
+
+        if len(sides) == 0:
+            await ctx.respond("There are currently no sides in the menu!", ephemeral=True)
+            return
+        elif len(sides) <= 25:
+            class SideView(discord.ui.View):
+                def __init__(self, inv_path, bg_path, menu_path):
+                    super().__init__(timeout=60.0)     
+                    self.inv_path = inv_path
+                    self.bg_path = bg_path
+                    self.menu_path = menu_path      
+                async def interaction_check(self, interaction):
+                    if interaction.user.id == ctx.author.id:
+                        async with aiosqlite.connect(self.bg_path) as db:
+                            async with db.execute(f"SELECT burgergeld FROM guild_{ctx.guild.id} WHERE user_id = ?", (ctx.author.id,)) as bg_cursor:
+                                bg_result = await bg_cursor.fetchone()
+                                if bg_result is None:
+                                    await ctx.edit(content="You currently don't have Burgergeld!", view=None, embed=None)
+                                    return False
+                                price = None
+                                with open(self.menu_path, "r") as file:
+                                    menu_data = json.load(file)
+                                    for side in menu_data.get("Sides", []):
+                                        if side["id"] == int(interaction.custom_id):
+                                            price = side["price"]
+                                    if price > bg_result[0]:
+                                        await ctx.edit(content="You don't have enough Burgergeld to buy this side!", view=None, embed=None)
+                                        return False
+                        async with aiosqlite.connect(self.inv_path) as db:
+                            result = await db.execute_fetchall(f"SELECT * FROM guild_{ctx.guild.id} WHERE user_id = ? AND menu_id = ?", (ctx.author.id, interaction.custom_id))
+                            if len(result) == 0:
+                                await db.execute(f"INSERT INTO guild_{ctx.guild.id} (user_id, menu_id, amount) VALUES (?, ?, 1)", (ctx.author.id, interaction.custom_id))
+                            else:
+                                await db.execute(f"UPDATE guild_{ctx.guild.id} SET amount = amount + 1 WHERE user_id = ? AND menu_id = ?", (ctx.author.id, interaction.custom_id))
+                            await db.commit()
+                        async with aiosqlite.connect(self.bg_path) as db:
+                            await db.execute(f"UPDATE guild_{ctx.guild.id} SET burgergeld = burgergeld - ? WHERE user_id = ?", (price, ctx.author.id))
+                            await db.commit()
+                        await ctx.edit(content="You bought a side!", view=None, embed=None)
+                        return True
+                    else:
+                        await interaction.response.send_message("You can't interact with this menu!", ephemeral=True)
+                        self.stop()
+                        return False
+                async def on_timeout(self):
+                    self.clear_items()
+                    self.stop()
+                    await ctx.edit(content="The menu timed out! Please re-run the Buy Command!", view=None, embed=None)
+            view = SideView(self.inv_path, self.bg_path, self.menu_path)
+            row = 0
+            i = 0
+            for side in sides:
+                if i % 5 == 0 and i != 0:
+                    row += 1
+                view.add_item(discord.ui.Button(style=discord.ButtonStyle.secondary, label=side["name"], row=row, custom_id=str(side["id"])))
+                i += 1
+            embed = discord.Embed(title="Burger-Menu", color=discord.Color.blurple())
+            embed.add_field(name="Sides", value="\n".join([f"{side['name']} - {side['price']} BG" for side in sides]), inline=False)
+            await ctx.respond(embed=embed, view=view)
+        elif len(sides) > 25:
+            await ctx.respond("There are too many sides in the menu to display them all at once! Please get back to Wolfiii!", ephemeral=True)
 
     @discord.slash_command(name="inventory", description="Shows your current inventory.")
     async def inventory(self, ctx):
