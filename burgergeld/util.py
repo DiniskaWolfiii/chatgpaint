@@ -248,11 +248,6 @@ class BurgerUtil(commands.Cog):
         await ctx.defer()
         await ctx.respond("This command is not implemented yet!", ephemeral=True)
     
-    @burger_command.command(name="sell", description="Sell a burger or side from your inventory.")
-    async def sell_burger(self, ctx):
-        await ctx.defer()
-        await ctx.respond("This command is not implemented yet!", ephemeral=True)
-    
     @burger_command.command(name="gift", description="Gift a burger or side to another user.")
     async def gift_burger(self, ctx):
         await ctx.defer()
