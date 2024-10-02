@@ -374,11 +374,147 @@ class BurgerUtil(commands.Cog):
         await ctx.respond(embed=embed, view=view, ephemeral=True)
 
     gift_command = discord.SlashCommandGroup(name="gift", description="Gift a burger or side to another user.")
-    @gift_command.command(name="gift", description="Gift a burger to another user.")
-    async def gift_burger(self, ctx):
+    @gift_command.command(name="burger", description="Gift a burger to another user.")
+    async def gift_burger(self, ctx, user: discord.Member):
         await ctx.defer()
-        await ctx.respond("This command is not implemented yet!", ephemeral=True)
-    
+        menu = None
+        with open(self.menu_path, "r") as file:
+            menu = json.load(file)
+        burgers = menu.get("Burger", [])
+        raw_inventory = None
+        async with aiosqlite.connect(self.inv_path) as db:
+            raw_inventory = await db.execute_fetchall(f"SELECT * FROM guild_{ctx.guild.id} WHERE user_id = ?", (ctx.author.id,))
+        for item in burgers[:]:
+            is_burger = False
+            for inv_item in raw_inventory:
+                if item["id"] == inv_item[1]:
+                    is_burger = True
+                    item["amount"] = inv_item[2]
+                    break
+            if not is_burger:
+                burgers.remove(item)
+        if len(burgers) == 0:
+            await ctx.respond("You currently don't have any burgers in your inventory!", ephemeral=True)
+            return
+        elif len(burgers) > 25:
+            await ctx.respond("There are too many burgers in your inventory to display them all at once! Please get back to Wolfiii!", ephemeral=True)
+            return
+        
+        class GiftBurgerView(discord.ui.View):
+            def __init__(self, inv_path, bg_path, menu_path):
+                super().__init__(timeout=60.0)
+                self.inv_path = inv_path
+                self.bg_path = bg_path
+                self.menu_path = menu_path
+            async def interaction_check(self, interaction):
+                if interaction.user.id == ctx.author.id:
+                    async with aiosqlite.connect(self.inv_path) as db:
+                        result = await db.execute(f"SELECT * FROM guild_{ctx.guild.id} WHERE user_id = ? AND menu_id = ?", (ctx.author.id, interaction.custom_id))
+                        result = await result.fetchone()
+                        if result[2] == 1: # If the user only has one of the item, delete the row
+                            await db.execute(f"DELETE FROM guild_{ctx.guild.id} WHERE user_id = ? AND menu_id = ?", (ctx.author.id, interaction.custom_id))
+                        else:
+                            await db.execute(f"UPDATE guild_{ctx.guild.id} SET amount = amount - 1 WHERE user_id = ? AND menu_id = ?", (ctx.author.id, interaction.custom_id))
+                        await db.commit()
+                    async with aiosqlite.connect(self.inv_path) as db:
+                        result = await db.execute(f"SELECT * FROM guild_{ctx.guild.id} WHERE user_id = ? AND menu_id = ?", (user.id, interaction.custom_id))
+                        result = await result.fetchone()
+                        if result is None:
+                            await db.execute(f"INSERT INTO guild_{ctx.guild.id} (user_id, menu_id, amount) VALUES (?, ?, 1)", (user.id, interaction.custom_id))
+                        else:
+                            await db.execute(f"UPDATE guild_{ctx.guild.id} SET amount = amount + 1 WHERE user_id = ? AND menu_id = ?", (user.id, interaction.custom_id))
+                        await db.commit()
+                    await ctx.edit(content=f"You gifted a burger to {user.mention}!", view=None, embed=None)
+                else:
+                    await interaction.response.send_message("You can't interact with this menu!", ephemeral=True)
+                    self.stop()
+                    return False
+            async def on_timeout(self):
+                self.clear_items()
+                self.stop()
+                await ctx.edit(content="The menu timed out! Please re-run the Gift Command!", view=None, embed=None)
+        view = GiftBurgerView(self.inv_path, self.bg_path, self.menu_path)
+        row = 0
+        i = 0
+        embed = discord.Embed(title="Inventory", color=discord.Color.blurple())
+        for burger in burgers:
+            if i % 5 == 0 and i != 0:
+                row += 1
+            view.add_item(discord.ui.Button(style=discord.ButtonStyle.secondary, label=burger["name"], row=row, custom_id=str(burger["id"])))
+            embed.add_field(name=burger["name"], value=f"Amount: {burger['amount']}", inline=False)
+            i += 1
+        await ctx.respond(embed=embed, view=view, ephemeral=True)
+
+    @gift_command.command(name="side", description="Gift a side to another user.")
+    async def gift_side(self, ctx, user: discord.Member):
+        await ctx.defer()
+        menu = None
+        with open(self.menu_path, "r") as file:
+            menu = json.load(file)
+        sides = menu.get("Sides", [])
+        raw_inventory = None
+        async with aiosqlite.connect(self.inv_path) as db:
+            raw_inventory = await db.execute_fetchall(f"SELECT * FROM guild_{ctx.guild.id} WHERE user_id = ?", (ctx.author.id,))
+        for item in sides[:]:
+            is_side = False
+            for inv_item in raw_inventory:
+                if item["id"] == inv_item[1]:
+                    is_side = True
+                    item["amount"] = inv_item[2]
+                    break
+            if not is_side:
+                sides.remove(item)
+        if len(sides) == 0:
+            await ctx.respond("You currently don't have any sides in your inventory!", ephemeral=True)
+            return
+        elif len(sides) > 25:
+            await ctx.respond("There are too many sides in your inventory to display them all at once! Please get back to Wolfiii!", ephemeral=True)
+            return
+        
+        class GiftSideView(discord.ui.View):
+            def __init__(self, inv_path, bg_path, menu_path):
+                super().__init__(timeout=60.0)
+                self.inv_path = inv_path
+                self.bg_path = bg_path
+                self.menu_path = menu_path
+            async def interaction_check(self, interaction):
+                if interaction.user.id == ctx.author.id:
+                    async with aiosqlite.connect(self.inv_path) as db:
+                        result = await db.execute(f"SELECT * FROM guild_{ctx.guild.id} WHERE user_id = ? AND menu_id = ?", (ctx.author.id, interaction.custom_id))
+                        result = await result.fetchone()
+                        if result[2] == 1: # If the user only has one of the item, delete the row
+                            await db.execute(f"DELETE FROM guild_{ctx.guild.id} WHERE user_id = ? AND menu_id = ?", (ctx.author.id, interaction.custom_id))
+                        else:
+                            await db.execute(f"UPDATE guild_{ctx.guild.id} SET amount = amount - 1 WHERE user_id = ? AND menu_id = ?", (ctx.author.id, interaction.custom_id))
+                        await db.commit()
+                    async with aiosqlite.connect(self.inv_path) as db:
+                        result = await db.execute(f"SELECT * FROM guild_{ctx.guild.id} WHERE user_id = ? AND menu_id = ?", (user.id, interaction.custom_id))
+                        result = await result.fetchone()
+                        if result is None:
+                            await db.execute(f"INSERT INTO guild_{ctx.guild.id} (user_id, menu_id, amount) VALUES (?, ?, 1)", (user.id, interaction.custom_id))
+                        else:
+                            await db.execute(f"UPDATE guild_{ctx.guild.id} SET amount = amount + 1 WHERE user_id = ? AND menu_id = ?", (user.id, interaction.custom_id))
+                        await db.commit()
+                    await ctx.edit(content=f"You gifted a side to {user.mention}!", view=None, embed=None)
+                else:
+                    await interaction.response.send_message("You can't interact with this menu!", ephemeral=True)
+                    self.stop()
+                    return False
+            async def on_timeout(self):
+                self.clear_items()
+                self.stop()
+                await ctx.edit(content="The menu timed out! Please re-run the Gift Command!", view=None, embed=None)
+        view = GiftSideView(self.inv_path, self.bg_path, self.menu_path)
+        row = 0
+        i = 0
+        embed = discord.Embed(title="Inventory", color=discord.Color.blurple())
+        for side in sides:
+            if i % 5 == 0 and i != 0:
+                row += 1
+            view.add_item(discord.ui.Button(style=discord.ButtonStyle.secondary, label=side["name"], row=row, custom_id=str(side["id"])))
+            embed.add_field(name=side["name"], value=f"Amount: {side['amount']}", inline=False)
+            i += 1
+        await ctx.respond(embed=embed, view=view, ephemeral=True)
 
 
     @discord.Cog.listener()
