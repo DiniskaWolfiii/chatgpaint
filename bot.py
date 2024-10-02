@@ -47,6 +47,19 @@ if __name__ == '__main__':
                 print('{} konnte nicht geladen werden. [{}]'.format(i, error)) # print the error
             else:
                 print(f"{i} wurde geladen") # print that the file was loaded
+    
+    if os.path.isdir("./../burgergeld"):
+        os.chdir("./../burgergeld")
+    else:
+        os.chdir("./../app/burgergeld")
+    for i in os.listdir():
+        if i.endswith(".py"):
+            try:
+                bot.load_extension(f"burgergeld.{i[:-3]}")
+            except Exception as error:
+                print('{} konnte nicht geladen werden. [{}]'.format(i, error))
+            else:
+                print(f"{i} wurde geladen")
 
 
 bot.run(os.getenv('TOKEN')) # run the bot with the token
