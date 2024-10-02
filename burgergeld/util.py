@@ -242,13 +242,75 @@ class BurgerUtil(commands.Cog):
 
 
 
-    burger_command = discord.SlashCommandGroup(name="burger", description="Commands for the Burger-Menu.")
-    @burger_command.command(name="consume", description="Consume a burger or side from your inventory.")
+    consume_command = discord.SlashCommandGroup(name="consume", description="Commands for the Burger-Menu.")
+    @consume_command.command(name="burger", description="Consume a burger from your inventory.")
     async def consume_burger(self, ctx):
         await ctx.defer()
-        await ctx.respond("This command is not implemented yet!", ephemeral=True)
-    
-    @burger_command.command(name="gift", description="Gift a burger or side to another user.")
+        menu = None
+        with open(self.menu_path, "r") as file:
+            menu = json.load(file)
+        burgers = menu.get("Burger", [])
+        raw_inventory = None
+        async with aiosqlite.connect(self.inv_path) as db:
+            raw_inventory = await db.execute_fetchall(f"SELECT * FROM guild_{ctx.guild.id} WHERE user_id = ?", (ctx.author.id,))
+
+        for item in burgers[:]: # Copy the list to avoid modifying it while iterating -> Causes to skip items otherwise
+            is_burger = False
+            for inv_item in raw_inventory:
+                if item["id"] == inv_item[1]:
+                    is_burger = True
+                    item["amount"] = inv_item[2]
+                    break
+            if not is_burger:
+                burgers.remove(item)
+        if len(burgers) == 0:
+            await ctx.respond("You currently don't have any burgers in your inventory!", ephemeral=True)
+            return
+        elif len(burgers) > 25:
+            await ctx.respond("There are too many burgers in your inventory to display them all at once! Please get back to Wolfiii!", ephemeral=True)
+            return
+        
+
+        class ConsumeBurgerView(discord.ui.View):
+            def __init__(self, inv_path, bg_path, menu_path):
+                super().__init__(timeout=60.0)
+                self.inv_path = inv_path
+                self.bg_path = bg_path
+                self.menu_path = menu_path
+            async def interaction_check(self, interaction):
+                if interaction.user.id == ctx.author.id:
+                    async with aiosqlite.connect(self.inv_path) as db:
+                        result = await db.execute(f"SELECT * FROM guild_{ctx.guild.id} WHERE user_id = ? AND menu_id = ?", (ctx.author.id, interaction.custom_id))
+                        result = await result.fetchone()
+                        if result[2] == 1: # If the user only has one of the item, delete the row
+                            await db.execute(f"DELETE FROM guild_{ctx.guild.id} WHERE user_id = ? AND menu_id = ?", (ctx.author.id, interaction.custom_id))
+                        else:
+                            await db.execute(f"UPDATE guild_{ctx.guild.id} SET amount = amount - 1 WHERE user_id = ? AND menu_id = ?", (ctx.author.id, interaction.custom_id))
+                        await db.commit()
+                    await ctx.edit(content="You consumed a burger!", view=None, embed=None)
+                else:
+                    await interaction.response.send_message("You can't interact with this menu!", ephemeral=True)
+                    self.stop()
+                    return False
+            async def on_timeout(self):
+                self.clear_items()
+                self.stop()
+                await ctx.edit(content="The menu timed out! Please re-run the Consume Command!", view=None, embed=None)
+        view = ConsumeBurgerView(self.inv_path, self.bg_path, self.menu_path)
+        row = 0
+        i = 0
+        embed = discord.Embed(title="Inventory", color=discord.Color.blurple())
+        for burger in burgers:
+            if i % 5 == 0 and i != 0:
+                row += 1
+            view.add_item(discord.ui.Button(style=discord.ButtonStyle.secondary, label=burger["name"], row=row, custom_id=str(burger["id"])))
+            
+            embed.add_field(name=burger["name"], value=f"Amount: {burger["amount"]}", inline=False)
+            i += 1
+        await ctx.respond(embed=embed, view=view, ephemeral=True)
+
+    gift_command = discord.SlashCommandGroup(name="gift", description="Gift a burger or side to another user.")
+    @gift_command.command(name="gift", description="Gift a burger to another user.")
     async def gift_burger(self, ctx):
         await ctx.defer()
         await ctx.respond("This command is not implemented yet!", ephemeral=True)
