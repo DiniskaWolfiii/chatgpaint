@@ -9,3 +9,15 @@ class Minigames(commands.Cog):
 
 def setup(bot):
     bot.add_cog(Minigames(bot))
+
+""""Minigame Ideas:
+- Word Morphing
+- Counting
+- Lucky Wheel
+- Rock Paper Scissors
+- Garden?
+- Hangman
+- Tic Tac Toe
+- Connect Four
+- Quiz?
+"""
