@@ -1,34 +1,23 @@
-import time
-
-import FastAPI
 import discord
-import uvicorn
 from discord.ext import commands, tasks
 import random
+from flask import Flask, request
 import threading
 from dotenv import load_dotenv
+import requests
 import os
 
 load_dotenv()
 
-app = FastAPI()
+app = Flask(__name__)
 
-@app.post('/chatgpaint-ping')
+@app.route('/chatgpaint-ping', methods=['POST'])
 def ping():
     return "OK", 200
 
-@app.get('/health_check')
-def health_check():
-    return {"Status": "Ok", "Time": time.time()}
-
 def run():
-    print("Starting FastAPI server")
-    uvicorn.run(
-        "setups:app",
-        host="0.0.0.0",
-        port=int(os.getenv("STATUS_UPDATE_PORT", 8000)),
-        log_level="info",
-    )
+    print("Starting Flask server")
+    app.run(host='0.0.0.0', port=os.getenv("STATUS_UPDATE_PORT"))
 
 class Setups(commands.Cog): # create a class for our cog that inherits from commands.Cog
     # this class is used to create a cog, which is a module that can be added to the bot
