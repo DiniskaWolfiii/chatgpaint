@@ -33,6 +33,21 @@ async def _build_embed(data: dict) -> discord.Embed:
     return embed
 
 
+def _build_poll(data: dict) -> discord.Poll:
+    answers = data.get("answers", [])
+    poll = discord.Poll(
+        question=data["question"],
+        duration=int(data.get("duration", 24)),
+        allow_multiselect=bool(data.get("allow_multiselect", False)),
+    )
+    for answer in answers:
+        if isinstance(answer, dict):
+            poll.add_answer(text=answer.get("text", ""), emoji=answer.get("emoji"))
+        else:
+            poll.add_answer(text=answer)
+    return poll
+
+
 def create_app(bot: discord.Bot) -> aiohttp.web.Application:
     api_secret = os.getenv("API_SECRET")
     app = aiohttp.web.Application()
@@ -80,7 +95,95 @@ def create_app(bot: discord.Bot) -> aiohttp.web.Application:
         logging.info(f"API: DM sent to user {user_id}")
         return aiohttp.web.json_response({"success": True})
 
+    async def send_message(request: aiohttp.web.Request) -> aiohttp.web.Response:
+        if not _auth(request):
+            return aiohttp.web.json_response({"error": "Unauthorized"}, status=401)
+
+        try:
+            body = await request.json()
+        except Exception:
+            return aiohttp.web.json_response({"error": "Invalid JSON"}, status=400)
+
+        channel_id = body.get("channel_id")
+        content = body.get("content")
+
+        if not channel_id:
+            return aiohttp.web.json_response({"error": "channel_id is required"}, status=400)
+        if not content or not isinstance(content, str):
+            return aiohttp.web.json_response({"error": "content is required"}, status=400)
+
+        try:
+            channel = bot.get_channel(int(channel_id)) or await bot.fetch_channel(int(channel_id))
+        except discord.NotFound:
+            return aiohttp.web.json_response({"error": "Channel not found"}, status=404)
+        except discord.HTTPException as e:
+            logging.warning(f"API /message fetch_channel failed: {e}")
+            return aiohttp.web.json_response({"error": "Failed to fetch channel"}, status=500)
+
+        if not isinstance(channel, discord.abc.Messageable):
+            return aiohttp.web.json_response({"error": "Channel is not messageable"}, status=400)
+
+        try:
+            await channel.send(content=content)
+        except discord.Forbidden:
+            return aiohttp.web.json_response({"error": "Cannot send message to this channel"}, status=403)
+        except discord.HTTPException as e:
+            logging.warning(f"API /message send failed: {e}")
+            return aiohttp.web.json_response({"error": "Failed to send message"}, status=500)
+
+        logging.info(f"API: message sent to channel {channel_id}")
+        return aiohttp.web.json_response({"success": True})
+
+    async def send_poll(request: aiohttp.web.Request) -> aiohttp.web.Response:
+        if not _auth(request):
+            return aiohttp.web.json_response({"error": "Unauthorized"}, status=401)
+
+        try:
+            body = await request.json()
+        except Exception:
+            return aiohttp.web.json_response({"error": "Invalid JSON"}, status=400)
+
+        channel_id = body.get("channel_id")
+        question = body.get("question")
+        answers = body.get("answers")
+
+        if not channel_id:
+            return aiohttp.web.json_response({"error": "channel_id is required"}, status=400)
+        if not question or not isinstance(question, str):
+            return aiohttp.web.json_response({"error": "question is required"}, status=400)
+        if not answers or not isinstance(answers, list):
+            return aiohttp.web.json_response({"error": "answers list is required"}, status=400)
+
+        try:
+            channel = bot.get_channel(int(channel_id)) or await bot.fetch_channel(int(channel_id))
+        except discord.NotFound:
+            return aiohttp.web.json_response({"error": "Channel not found"}, status=404)
+        except discord.HTTPException as e:
+            logging.warning(f"API /poll fetch_channel failed: {e}")
+            return aiohttp.web.json_response({"error": "Failed to fetch channel"}, status=500)
+
+        if not isinstance(channel, discord.abc.Messageable):
+            return aiohttp.web.json_response({"error": "Channel is not messageable"}, status=400)
+
+        try:
+            poll = _build_poll(body)
+        except ValueError as e:
+            return aiohttp.web.json_response({"error": str(e)}, status=400)
+
+        try:
+            await channel.send(poll=poll)
+        except discord.Forbidden:
+            return aiohttp.web.json_response({"error": "Cannot send poll to this channel"}, status=403)
+        except discord.HTTPException as e:
+            logging.warning(f"API /poll send failed: {e}")
+            return aiohttp.web.json_response({"error": "Failed to send poll"}, status=500)
+
+        logging.info(f"API: poll sent to channel {channel_id}")
+        return aiohttp.web.json_response({"success": True})
+
     app.router.add_post("/api/dm", send_dm)
+    app.router.add_post("/api/message", send_message)
+    app.router.add_post("/api/poll", send_poll)
     return app
 
 
