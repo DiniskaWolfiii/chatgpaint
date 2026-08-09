@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import os
 import random
@@ -14,6 +15,11 @@ from db import Database
 
 
 load_dotenv()
+##########################################################################
+# Python 3.14 removed the implicit event loop creation in
+# asyncio.get_event_loop(); py-cord's Client.__init__ still relies on it
+# when no loop is passed explicitly, so we set one up ourselves here.
+asyncio.set_event_loop(asyncio.new_event_loop())
 ##########################################################################
 intents = discord.Intents().default()
 intents.message_content = True
