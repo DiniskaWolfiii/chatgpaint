@@ -3,6 +3,9 @@ from discord.ext import commands
 import os
 import json
 from ext.system import is_owner
+from datetime import datetime
+
+from ext.system import default_embed
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -15,38 +18,13 @@ class AdminCommands(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @discord.slash_command(name="send-announcement-with-poll", description="Sends an announcement with a poll to the specified channel")
-    @is_owner()
-    @discord.option("text", description="The text of the announcement")
-    @discord.option("poll_text", description="The text of the poll question", required=False)
-    @discord.option("poll_options", description="The options for the poll, separated by Divider, e.g. |Option 1|Option 2|Option 3", required=False)
-    @discord.option("poll_duration", description="The duration of the poll in hours. Default is 24. Max is 168 (7 days), Min is 1.", type=discord.SlashCommandOptionType.integer, required=False)
-    @discord.option("pinged_role", description="The role to ping in the announcement", type=discord.SlashCommandOptionType.role, required=False)
-    async def sendAnnouncementWithPoll(self, ctx: discord.ApplicationContext, text: str, poll_text: str = None, poll_options: str = None, poll_duration: int = 24, pinged_role: discord.Role = None):
-        if poll_duration > 168:
-            await ctx.respond("Poll duration cannot be longer than 168 hours (7 days)", ephemeral=True)
+    @commands.slash_command(name="ban", description="Ban a member (Only Burgeramt!)")
+    @discord.option(name="member", description="Member you want to ban", contexts={discord.SlashCommandOptionType.user}, required=True)
+    async def ban(self, ctx: discord.ApplicationContext, member: discord.Member):
+        if not ctx.user.guild_permissions.ban_members:
+            await ctx.respond("You don't have the permission to ban others! Please reach out to the Burgeramt.", ephemeral=True)
             return
-        if poll_duration < 1:
-            await ctx.respond("Poll duration cannot be less than 1 hour", ephemeral=True)
-            return
-        text = text.replace("\\n", "\n")
-        if pinged_role is not None:
-            text = f"{text}\n\n{pinged_role.mention}"
-        await ctx.channel.send(text)
-
-        if poll_options and poll_text:
-            options = [o.strip() for o in poll_options.split("|")]
-            poll = discord.Poll(
-                question=poll_text,
-                duration=poll_duration
-            )
-            for option in options:
-                poll.add_answer(text=option)
-            await ctx.channel.send(poll=poll)
-        
-        await ctx.respond("Announcement sent!", ephemeral=True)
-
-
+        await ctx.response.send_modal(BanModal(member))       
 
 
     @commands.command(name="role-colors")
@@ -135,5 +113,33 @@ class AdminCommands(commands.Cog):
         await msg.remove_reaction(payload.emoji, payload.member)
         await payload.member.send(f"Changed your role color to {payload.member.guild.get_role(int(list(rolecolors.keys())[list(rolecolors.values()).index(str(payload.emoji))])).name}")        
 
+class BanModal(discord.ui.Modal):
+    def __init__(self, member: discord.Member, *args, **kwargs):
+        super().__init__(title="Ban Member", *args, **kwargs)
+        self.member = member
+        self.add_item(
+            discord.ui.InputText(
+                label="Reason",
+                placeholder="Please provide a reason for the ban.",
+                style=discord.InputTextStyle.paragraph,
+                max_length=4000,
+                required=True
+            )
+        )
+
+    async def callback(self, interaction: discord.Interaction):
+        reason = self.children[0].value
+        await self.member.ban(reason=f"Banned by {interaction.user.name} at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}: {reason}")
+        await interaction.response.send_message(f"You have successfully banned {self.member.mention} for the following reason: {reason}", ephemeral=True)
+
+        embed = await default_embed(fact=False)
+        embed.title = "Member Banned"
+        embed.description = f"{self.member.name} has been banned by {interaction.user.name}."
+        embed.add_field(name="Reason", value=reason, inline=False)
+        embed.set_footer(text=f"Ban executed at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+
+        await self.member.guild.get_channel(1345384433863360542).send(content="<@327880195476422656> <@474947907913515019> Please review the ban details and fill out the form: https://cloud.pfotenclub.eu/f/4131", embed=embed)
+        
+    
 def setup(bot): # this is called by Pycord to setup the cog
     bot.add_cog(AdminCommands(bot)) # add the cog to the bot
