@@ -8,9 +8,9 @@ attrs==26.1.0
 certifi==2026.7.22
 cffi==2.1.1
 charset-normalizer==3.5.1
-click==8.4.2
+click==8.5.0
 colorama==0.4.6
-cryptography==50.0.0
+cryptography==50.0.1
 distro==1.9.0
 dotenv==0.9.9
 frozenlist==1.8.0
@@ -23,7 +23,7 @@ jiter==0.16.0
 joblib==1.5.3
 multidict==6.7.1
 nltk==3.10.3
-openai==3.3.1
+openai==3.5.0
 propcache==0.5.2
 py-cord @ git+https://github.com/Pycord-Development/pycord.git@1c65fc820b7faf7c02041b14ef43ed28ac18a24c
 pycparser==3.0
